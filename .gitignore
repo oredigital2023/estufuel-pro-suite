@@ -1,0 +1,10 @@
+# Local environment files
+.env
+.DS_Store
+node_modules/
+dist/
+*.log
+.tempmediaStorage/
+
+# Sensitive Config
+utils/config.js
