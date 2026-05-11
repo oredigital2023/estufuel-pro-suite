@@ -3,15 +3,15 @@ import { authService } from './auth.service.js';
 
 class SalesService {
     constructor() {
-        this.tables = {
-            transactions: 'transactions',
-            customers: 'customers',
-            products: 'products'
-        };
         this.cache = {
             transactions: [],
             customers: [],
             products: []
+        };
+        this.tables = {
+            transactions: 'suite_transactions',
+            customers: 'suite_customers',
+            products: 'suite_products'
         };
     }
 

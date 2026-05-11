@@ -3,7 +3,7 @@ import { authService } from './auth.service.js';
 
 class ProspectService {
     constructor() {
-        this.tableName = 'prospectos';
+        this.tableName = 'suite_prospects';
         this.prospectsCache = [];
     }
 
