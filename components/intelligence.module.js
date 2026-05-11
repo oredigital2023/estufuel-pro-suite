@@ -4,6 +4,7 @@ import { salesService } from '../services/sales.service.js';
 export class IntelligenceModule {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
+        this.charts = {};
         this.bindEvents();
     }
 
@@ -19,127 +20,64 @@ export class IntelligenceModule {
         const transactions = salesService.cache.transactions || [];
         const customers = salesService.cache.customers || [];
         
-        // Calculate real retention data
         const retentionOpps = this.calculateRetentionOpportunities(transactions, customers);
         
-        // Pipeline by origin
-        const originCounts = {};
-        prospects.forEach(p => {
-            const origin = p.origen || 'Sin origen';
-            originCounts[origin] = (originCounts[origin] || 0) + 1;
-        });
-        const originEntries = Object.entries(originCounts).sort((a, b) => b[1] - a[1]);
-
-        // Lost analysis
-        const lostProspects = prospects.filter(p => p.estado === 'Perdido');
-        const activeProspects = prospects.filter(p => !['Convertido', 'Perdido'].includes(p.estado));
-        
-        // Sales velocity
-        const salesTx = transactions.filter(t => t.type === 'sale');
-        const avgTicket = salesTx.length > 0 
-            ? salesTx.reduce((a, t) => a + (Number(t.income) || 0), 0) / salesTx.length 
-            : 0;
-
         const html = `
             <div class="fade-in">
-                <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <div>
                         <h1>Inteligencia de Negocio</h1>
-                        <p>Análisis predictivo, retención y rendimiento del pipeline.</p>
+                        <p>Análisis avanzado y herramientas de exportación.</p>
                     </div>
-                    <button class="btn btn-secondary" id="btnExportData"><i class="ph ph-export"></i> Exportar</button>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn btn-secondary" id="btnExportProspects"><i class="ph ph-users"></i> Exportar Prospectos</button>
+                        <button class="btn btn-secondary" id="btnExportSales"><i class="ph ph-receipt"></i> Exportar Ventas</button>
+                    </div>
                 </header>
                 
                 <div class="bento-grid">
-                    <!-- Retention Alert Card -->
-                    <div class="bento-card bento-span-2" style="border-left: 3px solid var(--color-warning);">
-                        <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <!-- Retention Alerts -->
+                    <div class="bento-card bento-span-2">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
                             <i class="ph ph-bell-ringing" style="color: var(--color-warning);"></i>
-                            Oportunidades de Recompra
+                            Alertas de Seguimiento
                         </h3>
-                        <p style="margin-bottom: 1rem;">Clientes sin actividad reciente que pueden necesitar seguimiento.</p>
-                        <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.5rem;" id="retentionList">
-                            ${retentionOpps.length === 0 ? `
-                                <li style="font-size: 0.875rem; color: var(--color-success); display: flex; align-items: center; gap: 0.5rem; padding: 1rem 0;">
-                                    <i class="ph ph-check-circle"></i>
-                                    Todo al día. No hay seguimientos pendientes.
-                                </li>
-                            ` : retentionOpps.map(opp => `
-                                <li style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--color-bg-app); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
-                                    <div style="display: flex; gap: 0.75rem; align-items: center;">
-                                        <div class="avatar avatar-neutral">${opp.name.charAt(0).toUpperCase()}</div>
-                                        <div>
-                                            <div style="font-weight: 500; font-size: 0.8125rem;">${opp.name}</div>
-                                            <div style="font-size: 0.6875rem; color: var(--color-text-faint);">${opp.detail}</div>
-                                        </div>
+                        <div id="retentionList" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            ${retentionOpps.length === 0 ? '<p style="color: var(--color-text-faint);">No hay alertas pendientes.</p>' : 
+                                retentionOpps.map(opp => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--color-bg-app); border-radius: var(--radius-lg); border: 1px solid var(--color-border);">
+                                    <div>
+                                        <div style="font-weight: 500; font-size: 0.875rem;">${opp.name}</div>
+                                        <div style="font-size: 0.75rem; color: var(--color-text-faint);">${opp.detail}</div>
                                     </div>
-                                    ${opp.phone ? `
-                                        <a href="https://wa.me/${opp.phone.replace(/\D/g, '')}" target="_blank" class="btn btn-ghost" style="padding: 0.375rem; color: var(--color-success);">
-                                            <i class="ph ph-whatsapp-logo"></i>
-                                        </a>
-                                    ` : ''}
-                                </li>
+                                    <a href="https://wa.me/${opp.phone.replace(/\D/g, '')}" target="_blank" class="btn btn-ghost" style="color: var(--color-success);"><i class="ph ph-whatsapp-logo"></i></a>
+                                </div>
                             `).join('')}
-                        </ul>
-                    </div>
-
-                    <!-- Quick Stats -->
-                    <div class="bento-card">
-                        <h3 style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="ph ph-chart-pie" style="color: var(--color-info);"></i>
-                            Métricas Rápidas
-                        </h3>
-                        <div style="display: flex; flex-direction: column; gap: 1rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.8125rem; color: var(--color-text-muted);">Ticket Medio</span>
-                                <strong style="font-size: 1.125rem;">€${avgTicket.toFixed(2)}</strong>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.8125rem; color: var(--color-text-muted);">En seguimiento</span>
-                                <strong>${activeProspects.length}</strong>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.8125rem; color: var(--color-text-muted);">Perdidos</span>
-                                <strong style="color: var(--color-danger);">${lostProspects.length}</strong>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.8125rem; color: var(--color-text-muted);">Total clientes</span>
-                                <strong>${customers.length}</strong>
-                            </div>
                         </div>
                     </div>
 
-                    <!-- Conversion Funnel -->
-                    <div class="bento-card bento-span-2">
-                        <h3 style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="ph ph-funnel" style="color: var(--color-primary);"></i>
-                            Embudo Detallado
-                        </h3>
-                        ${this.renderDetailedFunnel(prospects)}
+                    <!-- Origin Distribution Chart -->
+                    <div class="bento-card">
+                        <h3 style="margin-bottom: 1.25rem;">Eficacia por Origen</h3>
+                        <div style="height: 250px;">
+                            <canvas id="originChart"></canvas>
+                        </div>
                     </div>
 
-                    <!-- Origin Analysis -->
-                    <div class="bento-card">
-                        <h3 style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="ph ph-map-pin" style="color: var(--color-warning);"></i>
-                            Origen de Prospectos
-                        </h3>
-                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                            ${originEntries.length === 0 ? `
-                                <p style="font-size: 0.875rem; color: var(--color-text-faint); text-align: center; padding: 1rem 0;">Sin datos de origen</p>
-                            ` : originEntries.map(([origin, count]) => {
-                                const pct = prospects.length > 0 ? ((count / prospects.length) * 100).toFixed(0) : 0;
-                                return `
-                                <div>
-                                    <div style="display: flex; justify-content: space-between; font-size: 0.8125rem; margin-bottom: 0.25rem;">
-                                        <span style="color: var(--color-text-secondary);">${origin}</span>
-                                        <span style="font-weight: 600;">${count} <span style="color: var(--color-text-faint); font-weight: 400;">(${pct}%)</span></span>
-                                    </div>
-                                    <div class="progress-track">
-                                        <div class="progress-fill primary" style="width: ${pct}%;"></div>
-                                    </div>
-                                </div>
-                            `}).join('')}
+                    <!-- Projections Card -->
+                    <div class="bento-card bento-span-3">
+                        <h3 style="margin-bottom: 1rem;">Calculadora de Calificación (Proyección PV)</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                            <div style="padding: 1rem; background: var(--color-primary-light); border-radius: var(--radius-lg);">
+                                <div style="font-size: 0.75rem; color: var(--color-primary-dark); font-weight: 600;">Objetivo Supervisor (4000 PV)</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0;">${this.calculatePVProgress(transactions, 4000)}%</div>
+                                <div class="progress-track"><div class="progress-fill primary" style="width: ${this.calculatePVProgress(transactions, 4000)}%"></div></div>
+                            </div>
+                            <div style="padding: 1rem; background: var(--color-info-light); border-radius: var(--radius-lg);">
+                                <div style="font-size: 0.75rem; color: var(--color-info); font-weight: 600;">Objetivo P. Calificado (1000 PV/Mes)</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0;">${this.calculatePVProgress(transactions, 1000, true)}%</div>
+                                <div class="progress-track"><div class="progress-fill blue" style="width: ${this.calculatePVProgress(transactions, 1000, true)}%"></div></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -148,81 +86,109 @@ export class IntelligenceModule {
 
         this.container.innerHTML = html;
         this.setupListeners();
-    }
-
-    renderDetailedFunnel(prospects) {
-        const stages = [
-            { label: 'Nuevos', estado: 'Nuevo', color: 'blue', icon: 'ph-user-plus' },
-            { label: 'Contactados', estado: 'Contactado', color: 'blue', icon: 'ph-chat-circle' },
-            { label: 'Interesados', estado: 'Interesado', color: 'amber', icon: 'ph-star' },
-            { label: 'Cita Agendada', estado: 'Cita Agendada', color: 'amber', icon: 'ph-calendar' },
-            { label: 'Asistió', estado: 'Asistió', color: 'primary', icon: 'ph-check' },
-            { label: 'Convertidos', estado: 'Convertido', color: 'green', icon: 'ph-crown' },
-        ];
-
-        const max = Math.max(prospects.length, 1);
-
-        return `<div style="display: flex; flex-direction: column; gap: 0.875rem;">
-            ${stages.map(s => {
-                const count = prospects.filter(p => p.estado === s.estado).length;
-                return `
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8125rem; margin-bottom: 0.25rem;">
-                        <span style="display: flex; align-items: center; gap: 0.375rem; color: var(--color-text-secondary);">
-                            <i class="ph ${s.icon}" style="font-size: 0.875rem;"></i>
-                            ${s.label}
-                        </span>
-                        <strong>${count}</strong>
-                    </div>
-                    <div class="progress-track">
-                        <div class="progress-fill ${s.color}" style="width: ${(count / max) * 100}%;"></div>
-                    </div>
-                </div>
-            `}).join('')}
-        </div>`;
-    }
-
-    calculateRetentionOpportunities(transactions, customers) {
-        if (customers.length === 0) return [];
         
-        const now = new Date();
-        const opportunities = [];
+        setTimeout(() => this.renderOriginChart(prospects), 50);
+    }
 
-        customers.forEach(customer => {
-            // Find last transaction for this customer
-            const customerTx = transactions
-                .filter(t => t.customerId === customer.id && t.type === 'sale')
-                .sort((a, b) => new Date(b.date) - new Date(a.date));
-            
-            if (customerTx.length > 0) {
-                const lastDate = new Date(customerTx[0].date);
-                const daysSince = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
-                
-                if (daysSince >= 25) {
-                    opportunities.push({
-                        name: customer.name,
-                        phone: customer.phone || '',
-                        detail: `Última compra hace ${daysSince} días`,
-                        daysSince
-                    });
+    renderOriginChart(prospects) {
+        const ctx = document.getElementById('originChart');
+        if (!ctx) return;
+
+        const origins = {};
+        prospects.forEach(p => {
+            const o = p.origen || 'Otros';
+            origins[o] = (origins[o] || 0) + 1;
+        });
+
+        if (this.charts.origin) this.charts.origin.destroy();
+
+        this.charts.origin = new Chart(ctx, {
+            type: 'polarArea',
+            data: {
+                labels: Object.keys(origins),
+                datasets: [{
+                    data: Object.values(origins),
+                    backgroundColor: [
+                        'rgba(59, 130, 246, 0.7)',
+                        'rgba(101, 163, 13, 0.7)',
+                        'rgba(245, 158, 11, 0.7)',
+                        'rgba(239, 68, 68, 0.7)',
+                        'rgba(139, 92, 246, 0.7)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
+                scales: { r: { ticks: { display: false } } }
+            }
+        });
+    }
+
+    calculatePVProgress(transactions, target, currentMonthOnly = false) {
+        let totalPV = 0;
+        const now = new Date();
+        
+        transactions.forEach(t => {
+            if (t.type === 'stock_purchase' || t.type === 'sale') {
+                const tDate = new Date(t.date);
+                if (currentMonthOnly && (tDate.getMonth() !== now.getMonth() || tDate.getFullYear() !== now.getFullYear())) {
+                    return;
                 }
-            } else {
-                // Customer with no sales - might need first contact
-                opportunities.push({
-                    name: customer.name,
-                    phone: customer.phone || '',
-                    detail: 'Sin compras registradas',
-                    daysSince: 999
-                });
+                totalPV += Number(t.pv || 0);
             }
         });
 
-        return opportunities.sort((a, b) => b.daysSince - a.daysSince).slice(0, 8);
+        const progress = (totalPV / target) * 100;
+        return Math.min(100, Math.round(progress));
+    }
+
+    calculateRetentionOpportunities(transactions, customers) {
+        const now = new Date();
+        return customers.map(c => {
+            const lastTx = transactions
+                .filter(t => t.customerId === c.id && t.type === 'sale')
+                .sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+            
+            if (!lastTx) return { name: c.name, phone: c.phone || '', detail: 'Sin compras aún', days: 999 };
+            
+            const days = Math.floor((now - new Date(lastTx.date)) / (1000 * 60 * 60 * 24));
+            if (days >= 25) return { name: c.name, phone: c.phone || '', detail: `Última compra hace ${days} días`, days };
+            return null;
+        }).filter(Boolean).sort((a,b) => b.days - a.days).slice(0, 5);
     }
 
     setupListeners() {
-        document.getElementById('btnExportData')?.addEventListener('click', () => {
-            window.toast?.info('Exportación de datos próximamente.');
+        document.getElementById('btnExportProspects')?.addEventListener('click', () => {
+            this.exportToCSV(prospectService.prospectsCache, 'prospectos_estufuel.csv');
         });
+
+        document.getElementById('btnExportSales')?.addEventListener('click', () => {
+            this.exportToCSV(salesService.cache.transactions, 'ventas_estufuel.csv');
+        });
+    }
+
+    exportToCSV(data, filename) {
+        if (!data || !data.length) {
+            window.toast?.warning('No hay datos para exportar');
+            return;
+        }
+
+        const headers = Object.keys(data[0]).join(',');
+        const rows = data.map(obj => 
+            Object.values(obj).map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
+        );
+        
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers, ...rows].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        window.toast?.success('Archivo exportado correctamente');
     }
 }

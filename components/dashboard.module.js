@@ -4,6 +4,7 @@ import { salesService } from '../services/sales.service.js';
 export class DashboardModule {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
+        this.charts = {};
         this.bindEvents();
     }
 
@@ -18,103 +19,59 @@ export class DashboardModule {
 
         const prospects = prospectService.prospectsCache || [];
         const transactions = salesService.cache.transactions || [];
-        const customers = salesService.cache.customers || [];
         
-        // Calculate metrics
         const activeProspects = prospects.filter(p => p.estado !== 'Convertido' && p.estado !== 'Perdido').length;
-        const convertedCount = prospects.filter(p => p.estado === 'Convertido').length;
         const salesTx = transactions.filter(t => t.type === 'sale');
         const totalSales = salesTx.reduce((acc, t) => acc + (Number(t.income) || 0), 0);
-        const totalProfit = salesTx.reduce((acc, t) => acc + (Number(t.profit) || 0), 0);
         const conversionRate = this.calculateConversionRate(prospects);
 
-        // Recent activity
-        const recentProspects = [...prospects].slice(0, 4);
-        
         const html = `
             <div class="fade-in">
                 <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <div>
                         <h1>Visión General</h1>
-                        <p>Resumen de tu actividad y métricas clave.</p>
+                        <p>Métricas de rendimiento en tiempo real.</p>
                     </div>
                     <div style="display: flex; gap: 0.75rem;">
-                        <button class="btn btn-secondary" id="btnRefreshDashboard"><i class="ph ph-arrows-clockwise"></i> Actualizar</button>
-                        <button class="btn btn-primary" id="btnNewProspectDashboard"><i class="ph ph-plus"></i> Prospecto</button>
+                        <button class="btn btn-secondary" id="btnRefreshDashboard"><i class="ph ph-arrows-clockwise"></i></button>
+                        <button class="btn btn-primary" id="btnNewProspectDashboard"><i class="ph ph-plus"></i> Nuevo</button>
                     </div>
                 </header>
 
                 <div class="bento-grid">
-                    <!-- KPI: Prospectos Activos -->
+                    <!-- KPI Cards -->
                     <div class="bento-card kpi-card">
-                        <div class="kpi-label">
-                            Prospectos Activos
-                            <div class="kpi-icon blue"><i class="ph ph-users"></i></div>
-                        </div>
+                        <div class="kpi-label">Prospectos Activos <div class="kpi-icon blue"><i class="ph ph-users"></i></div></div>
                         <div class="kpi-value">${activeProspects}</div>
-                        <div class="kpi-delta neutral">
-                            <i class="ph ph-chart-bar"></i>
-                            En pipeline actual
-                        </div>
+                        <div class="kpi-delta neutral"><i class="ph ph-trend-up"></i> Pipeline actual</div>
                     </div>
 
-                    <!-- KPI: Ventas Totales -->
                     <div class="bento-card kpi-card">
-                        <div class="kpi-label">
-                            Volumen de Ventas
-                            <div class="kpi-icon green"><i class="ph ph-currency-circle-dollar"></i></div>
-                        </div>
-                        <div class="kpi-value">€${totalSales.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-                        <div class="kpi-delta ${totalProfit >= 0 ? 'positive' : 'negative'}">
-                            <i class="ph ph-trend-up"></i>
-                            €${totalProfit.toFixed(2)} beneficio neto
-                        </div>
+                        <div class="kpi-label">Ventas Totales <div class="kpi-icon green"><i class="ph ph-currency-circle-dollar"></i></div></div>
+                        <div class="kpi-value">€${totalSales.toLocaleString('es-ES', { minimumFractionDigits: 0 })}</div>
+                        <div class="kpi-delta positive"><i class="ph ph-check"></i> ${salesTx.length} ventas</div>
                     </div>
 
-                    <!-- KPI: Tasa de Conversión -->
                     <div class="bento-card kpi-card">
-                        <div class="kpi-label">
-                            Conversión
-                            <div class="kpi-icon amber"><i class="ph ph-target"></i></div>
-                        </div>
+                        <div class="kpi-label">Conversión <div class="kpi-icon amber"><i class="ph ph-target"></i></div></div>
                         <div class="kpi-value">${conversionRate}%</div>
-                        <div class="kpi-delta neutral">
-                            <i class="ph ph-arrow-right"></i>
-                            ${convertedCount} de ${prospects.length} convertidos
+                        <div class="kpi-delta neutral"><i class="ph ph-users-three"></i> Prospectos a Clientes</div>
+                    </div>
+
+                    <!-- Chart: Sales Trend -->
+                    <div class="bento-card bento-span-2">
+                        <h3 style="margin-bottom: 1.25rem;">Tendencia de Ventas (6 meses)</h3>
+                        <div style="height: 240px; width: 100%;">
+                            <canvas id="salesTrendChart"></canvas>
                         </div>
                     </div>
 
-                    <!-- Funnel Visual -->
-                    <div class="bento-card bento-span-2">
-                        <h3 style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="ph ph-funnel" style="color: var(--color-primary);"></i>
-                            Embudo de Conversión
-                        </h3>
-                        ${this.renderFunnel(prospects)}
-                    </div>
-
-                    <!-- Recent Prospects -->
+                    <!-- Chart: Prospect States -->
                     <div class="bento-card">
-                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="ph ph-clock" style="color: var(--color-info);"></i>
-                            Últimos Prospectos
-                        </h3>
-                        <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.75rem;">
-                            ${recentProspects.length === 0 ? `
-                                <li style="text-align: center; padding: 1.5rem 0; color: var(--color-text-faint); font-size: 0.875rem;">
-                                    Sin prospectos registrados
-                                </li>
-                            ` : recentProspects.map(p => `
-                                <li style="display: flex; gap: 0.75rem; align-items: center;">
-                                    <div class="avatar avatar-primary">${(p.nombre_completo || '?').charAt(0).toUpperCase()}</div>
-                                    <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 500; font-size: 0.8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre_completo || 'Sin nombre'}</div>
-                                        <div style="font-size: 0.6875rem; color: var(--color-text-faint);">${p.origen || 'Sin origen'}</div>
-                                    </div>
-                                    <span class="badge ${this.getBadgeClass(p.estado)}">${p.estado || 'Nuevo'}</span>
-                                </li>
-                            `).join('')}
-                        </ul>
+                        <h3 style="margin-bottom: 1.25rem;">Distribución de Pipeline</h3>
+                        <div style="height: 240px; width: 100%;">
+                            <canvas id="prospectDistributionChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -122,42 +79,92 @@ export class DashboardModule {
 
         this.container.innerHTML = html;
         this.setupListeners();
+        
+        // Render charts after HTML is in DOM
+        setTimeout(() => {
+            this.renderSalesChart(transactions);
+            this.renderProspectChart(prospects);
+        }, 50);
     }
 
-    renderFunnel(prospects) {
-        const stages = [
-            { label: 'Total Prospectos', count: prospects.length, color: 'blue' },
-            { label: 'Contactados', count: prospects.filter(p => !['Nuevo'].includes(p.estado)).length, color: 'primary' },
-            { label: 'Interesados / Citas', count: prospects.filter(p => ['Interesado', 'Cita Agendada', 'Asistió'].includes(p.estado)).length, color: 'amber' },
-            { label: 'Convertidos', count: prospects.filter(p => p.estado === 'Convertido').length, color: 'green' },
-        ];
+    renderSalesChart(transactions) {
+        const ctx = document.getElementById('salesTrendChart');
+        if (!ctx) return;
 
-        const max = Math.max(stages[0].count, 1);
+        // Group sales by month
+        const monthlyData = {};
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = d.toLocaleString('es-ES', { month: 'short', year: '2-digit' });
+            months.push(key);
+            monthlyData[key] = 0;
+        }
 
-        return stages.map(s => `
-            <div style="margin-bottom: 1rem;">
-                <div style="display: flex; justify-content: space-between; font-size: 0.8125rem; margin-bottom: 0.375rem;">
-                    <span style="color: var(--color-text-secondary);">${s.label}</span>
-                    <strong>${s.count}</strong>
-                </div>
-                <div class="progress-track">
-                    <div class="progress-fill ${s.color}" style="width: ${(s.count / max) * 100}%;"></div>
-                </div>
-            </div>
-        `).join('');
+        transactions.filter(t => t.type === 'sale').forEach(t => {
+            const key = new Date(t.date).toLocaleString('es-ES', { month: 'short', year: '2-digit' });
+            if (monthlyData[key] !== undefined) monthlyData[key] += Number(t.income) || 0;
+        });
+
+        if (this.charts.sales) this.charts.sales.destroy();
+
+        this.charts.sales = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Ingresos (€)',
+                    data: months.map(m => monthlyData[m]),
+                    backgroundColor: 'rgba(101, 163, 13, 0.8)',
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                }
+            }
+        });
     }
 
-    getBadgeClass(estado) {
-        const map = {
-            'Nuevo': 'badge-info',
-            'Contactado': 'badge-info',
-            'Interesado': 'badge-warning',
-            'Cita Agendada': 'badge-warning',
-            'Asistió': 'badge-primary',
-            'Convertido': 'badge-success',
-            'Perdido': 'badge-danger'
+    renderProspectChart(prospects) {
+        const ctx = document.getElementById('prospectDistributionChart');
+        if (!ctx) return;
+
+        const counts = {
+            'Nuevos': prospects.filter(p => p.estado === 'Nuevo').length,
+            'Seguimiento': prospects.filter(p => !['Nuevo', 'Convertido', 'Perdido'].includes(p.estado)).length,
+            'Convertidos': prospects.filter(p => p.estado === 'Convertido').length,
+            'Perdidos': prospects.filter(p => p.estado === 'Perdido').length
         };
-        return map[estado] || 'badge-neutral';
+
+        if (this.charts.prospects) this.charts.prospects.destroy();
+
+        this.charts.prospects = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(counts),
+                datasets: [{
+                    data: Object.values(counts),
+                    backgroundColor: ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444'],
+                    borderWidth: 0,
+                    cutout: '75%'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15, font: { size: 11 } } }
+                }
+            }
+        });
     }
 
     calculateConversionRate(prospects) {
@@ -174,15 +181,8 @@ export class DashboardModule {
         document.getElementById('btnRefreshDashboard')?.addEventListener('click', async () => {
             const btn = document.getElementById('btnRefreshDashboard');
             btn.innerHTML = '<div class="loader"></div>';
-            btn.disabled = true;
-            try {
-                await Promise.all([prospectService.fetchAll(), salesService.fetchAll()]);
-                window.toast?.success('Datos actualizados');
-            } catch(err) {
-                window.toast?.error('Error al actualizar');
-            }
-            btn.innerHTML = '<i class="ph ph-arrows-clockwise"></i> Actualizar';
-            btn.disabled = false;
+            await Promise.all([prospectService.fetchAll(), salesService.fetchAll()]);
+            btn.innerHTML = '<i class="ph ph-arrows-clockwise"></i>';
         });
     }
 }
