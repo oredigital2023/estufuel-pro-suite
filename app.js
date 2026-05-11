@@ -193,6 +193,8 @@ class App {
                 this.renderCustomerForm(titleEl, contentEl, overlay, type, data);
             } else if (type === 'newTransaction') {
                 this.renderTransactionForm(titleEl, contentEl, overlay);
+            } else if (type === 'newProduct' || type === 'editProduct') {
+                this.renderProductForm(titleEl, contentEl, overlay, type, data);
             }
             
             overlay.classList.add('active');
@@ -433,6 +435,170 @@ class App {
                 this.toast.success('Operación registrada');
             } catch(err) {
                 this.toast.error('Error al guardar: ' + err.message);
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // ========================================
+    // PRODUCT FORM
+    // ========================================
+    renderProductForm(titleEl, contentEl, overlay, type, data) {
+        const isEdit = type === 'editProduct';
+        titleEl.textContent = isEdit ? `Editar: ${data.name}` : 'Nuevo Producto';
+        
+        contentEl.innerHTML = `
+            <form id="productForm" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">Nombre del Producto</label>
+                    <input type="text" id="pr_name" value="${isEdit ? (data.name || '') : ''}" required class="form-input" placeholder="Ej: Batido Fórmula 1 - Vainilla">
+                </div>
+                
+                <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Referencia (SKU)</label>
+                        <input type="text" id="pr_sku" value="${isEdit ? (data.sku || '') : ''}" class="form-input" placeholder="Ej: 0141">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Puntos Volumen (PV)</label>
+                        <input type="number" step="0.01" id="pr_pv" value="${isEdit ? (data.pv || 0) : ''}" class="form-input" placeholder="25.75">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Precio en Lista (PL) €</label>
+                        <input type="number" step="0.01" id="pr_price" value="${isEdit ? (data.price || '') : ''}" required class="form-input" placeholder="45.51">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Base Descuento (BD) €</label>
+                        <input type="number" step="0.01" id="pr_basePrice" value="${isEdit ? (data.basePrice || '') : ''}" required class="form-input" placeholder="41.70">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Categoría Fiscal</label>
+                        <select id="pr_taxType" class="form-select">
+                            <option value="internal" ${isEdit && data.taxType === 'internal' ? 'selected' : ''}>Nutrición (IVA 10%)</option>
+                            <option value="external" ${isEdit && data.taxType === 'external' ? 'selected' : ''}>Cosmética (IVA 21%)</option>
+                            <option value="literature" ${isEdit && data.taxType === 'literature' ? 'selected' : ''}>Literatura (IVA 4%)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Línea de Producto</label>
+                        <input type="text" id="pr_category" value="${isEdit ? (data.category || '') : ''}" class="form-input" placeholder="Ej: Nutrición Básica">
+                    </div>
+                </div>
+
+                <!-- Price Preview -->
+                <div id="pricePreview" style="padding: 1rem; background: var(--color-bg-app); border-radius: var(--radius-lg); border: 1px solid var(--color-border); font-size: 0.8125rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--color-text-muted);">Vista previa del precio:</span>
+                    </div>
+                    <div id="pricePreviewContent" style="color: var(--color-text-faint);">Rellena PL y BD para ver la vista previa</div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">
+                        ${isEdit ? 'Guardar Cambios' : 'Añadir Producto'}
+                    </button>
+                    ${isEdit ? `<button type="button" id="btnDeleteProduct" class="btn btn-danger" style="padding: 0.5rem 0.75rem;"><i class="ph ph-trash"></i></button>` : ''}
+                </div>
+            </form>
+        `;
+
+        // Live price preview
+        const updatePreview = () => {
+            const pl = parseFloat(document.getElementById('pr_price')?.value) || 0;
+            const bd = parseFloat(document.getElementById('pr_basePrice')?.value) || 0;
+            const taxType = document.getElementById('pr_taxType')?.value || 'internal';
+            const previewEl = document.getElementById('pricePreviewContent');
+            if (!previewEl || pl === 0) return;
+
+            // Import dynamically to avoid circular deps
+            import('./services/pricing.service.js').then(({ PricingService }) => {
+                import('./services/settings.service.js').then(({ settingsService }) => {
+                    const tier = settingsService.discountTier;
+                    const re = settingsService.includeRE;
+                    const bi = PricingService.calculateBaseImponible(pl, bd, tier);
+                    const final = PricingService.calculateFinalPrice(bi, taxType, re);
+                    const margin = pl - final;
+                    const pct = pl > 0 ? ((margin / pl) * 100).toFixed(1) : 0;
+
+                    previewEl.innerHTML = `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; text-align: center;">
+                            <div>
+                                <div style="font-size: 0.6875rem; color: var(--color-text-faint);">Base Imponible</div>
+                                <div style="font-weight: 600;">€${bi.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.6875rem; color: var(--color-text-faint);">Tu precio (${(tier*100).toFixed(0)}%)</div>
+                                <div style="font-weight: 600; color: var(--color-primary-dark);">€${final.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.6875rem; color: var(--color-text-faint);">Margen</div>
+                                <div style="font-weight: 600; color: var(--color-success);">€${margin.toFixed(2)} (${pct}%)</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+        };
+
+        ['pr_price', 'pr_basePrice', 'pr_taxType'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', updatePreview);
+            document.getElementById(id)?.addEventListener('change', updatePreview);
+        });
+
+        // Trigger initial preview for edit mode
+        if (isEdit) setTimeout(updatePreview, 100);
+
+        // Delete handler
+        if (isEdit) {
+            document.getElementById('btnDeleteProduct')?.addEventListener('click', async () => {
+                if (confirm(`¿Eliminar "${data.name}"?`)) {
+                    try {
+                        await salesService.delete('products', data.id);
+                        overlay.classList.remove('active');
+                        this.toast.success(`"${data.name}" eliminado`);
+                    } catch(err) {
+                        this.toast.error('Error: ' + err.message);
+                    }
+                }
+            });
+        }
+
+        // Submit handler
+        document.getElementById('productForm').addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const submitBtn = ev.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<div class="loader"></div> Guardando...';
+            submitBtn.disabled = true;
+
+            const payload = {
+                name: document.getElementById('pr_name').value,
+                sku: document.getElementById('pr_sku').value,
+                price: parseFloat(document.getElementById('pr_price').value) || 0,
+                basePrice: parseFloat(document.getElementById('pr_basePrice').value) || 0,
+                pv: parseFloat(document.getElementById('pr_pv').value) || 0,
+                taxType: document.getElementById('pr_taxType').value,
+                category: document.getElementById('pr_category').value
+            };
+
+            try {
+                if (isEdit) {
+                    await salesService.update('products', data.id, payload);
+                    this.toast.success('Producto actualizado');
+                } else {
+                    await salesService.create('products', payload);
+                    this.toast.success(`"${payload.name}" añadido al catálogo`);
+                }
+                overlay.classList.remove('active');
+            } catch(err) {
+                this.toast.error('Error: ' + err.message);
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
             }

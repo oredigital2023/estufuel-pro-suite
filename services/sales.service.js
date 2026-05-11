@@ -85,6 +85,25 @@ class SalesService {
         return data;
     }
 
+    // Generic delete
+    async delete(tableKey, id) {
+        const tableName = this.tables[tableKey];
+        if (!tableName) throw new Error(`Tabla ${tableKey} no soportada`);
+
+        const { error } = await supabase
+            .from(tableName)
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            handleSupabaseError(error, `SalesService.delete[${tableName}]`);
+            throw error;
+        }
+
+        this.cache[tableKey] = this.cache[tableKey].filter(item => item.id !== id);
+        this._emitChange(tableKey);
+    }
+
     _emitChange(tableKey) {
         const event = new CustomEvent(`data:${tableKey}Changed`, { detail: this.cache[tableKey] });
         window.dispatchEvent(event);
