@@ -20,9 +20,9 @@ class SalesService {
         
         try {
             const [transactionsRes, customersRes, productsRes] = await Promise.all([
-                supabase.from(this.tables.transactions).select('*').eq('user_id', authService.user.id),
-                supabase.from(this.tables.customers).select('*').eq('user_id', authService.user.id),
-                supabase.from(this.tables.products).select('*').eq('user_id', authService.user.id)
+                supabase.from(this.tables.transactions).select('*'),
+                supabase.from(this.tables.customers).select('*'),
+                supabase.from(this.tables.products).select('*')
             ]);
 
             if (transactionsRes.error) throw transactionsRes.error;
@@ -46,7 +46,7 @@ class SalesService {
         const tableName = this.tables[tableKey];
         if (!tableName) throw new Error(`Tabla ${tableKey} no soportada`);
 
-        const payload = { ...dataPayload, user_id: authService.user.id };
+        const payload = { ...dataPayload };
         const { data, error } = await supabase
             .from(tableName)
             .insert(payload)

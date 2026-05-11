@@ -21,7 +21,7 @@ export class DashboardModule {
         
         // Calculate metrics
         const activeProspects = prospects.filter(p => p.estado !== 'Convertido' && p.estado !== 'Perdido').length;
-        const totalSales = transactions.filter(t => t.type === 'Ingreso' || t.type === 'Venta').reduce((acc, t) => acc + (Number(t.income) || 0), 0);
+        const totalSales = transactions.filter(t => t.type === 'sale').reduce((acc, t) => acc + (Number(t.income) || 0), 0);
         
         const html = `
             <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">

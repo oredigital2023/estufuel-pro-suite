@@ -8,14 +8,19 @@ class AuthService {
     }
 
     async getSession() {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) handleSupabaseError(error, 'getSession');
-        this.session = session;
-        this.user = session?.user || null;
-        return session;
+        // Mock session for backward compatibility with existing data
+        const mockSession = { user: { id: 'demo-user', email: 'demo@estufuel.com' } };
+        this.session = mockSession;
+        this.user = mockSession.user;
+        
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        return mockSession;
     }
 
     initAuthListener() {
+        /*
         supabase.auth.onAuthStateChange((event, session) => {
             console.log(`[Auth Event] ${event}`);
             this.session = session;
@@ -27,6 +32,7 @@ class AuthService {
             });
             window.dispatchEvent(authEvent);
         });
+        */
     }
 
     async signIn(email, password) {

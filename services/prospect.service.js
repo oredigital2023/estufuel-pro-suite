@@ -13,7 +13,6 @@ class ProspectService {
         const { data, error } = await supabase
             .from(this.tableName)
             .select('*')
-            .eq('user_id', authService.user.id)
             .order('fecha_registro', { ascending: false });
 
         if (error) {
@@ -28,7 +27,7 @@ class ProspectService {
     async create(prospectData) {
         if (!authService.user) throw new Error('Usuario no autenticado');
 
-        const payload = { ...prospectData, user_id: authService.user.id };
+        const payload = { ...prospectData };
         const { data, error } = await supabase
             .from(this.tableName)
             .insert(payload)
@@ -64,6 +63,21 @@ class ProspectService {
         
         this._emitChange();
         return data;
+    }
+
+    async delete(id) {
+        const { error } = await supabase
+            .from(this.tableName)
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            handleSupabaseError(error, 'ProspectService.delete');
+            throw error;
+        }
+
+        this.prospectsCache = this.prospectsCache.filter(p => p.id !== id);
+        this._emitChange();
     }
 
     // Event driven architecture

@@ -47,24 +47,26 @@ export class SalesModule {
         `;
 
         const recentTransactions = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+        const typeLabels = { 'sale':'Venta', 'personal':'Consumo', 'sample':'Muestra', 'stock_purchase':'Compra Stock', 'other_expense':'Otros Gastos' };
 
         if (recentTransactions.length === 0) {
             html += `<tr><td colspan="4" style="padding: 2rem 0; text-align: center; color: var(--color-text-muted);">No hay transacciones.</td></tr>`;
         } else {
             recentTransactions.forEach(t => {
-                const isIncome = t.type === 'Ingreso' || t.type === 'Venta';
-                const typeColor = isIncome ? 'var(--color-success)' : 'var(--color-danger)';
+                const isIncome = t.type === 'sale';
+                const typeColor = isIncome ? 'var(--color-success)' : (t.type === 'personal' ? 'var(--color-info)' : 'var(--color-danger)');
                 const profitColor = t.profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+                const displayIncome = t.type === 'other_expense' ? (-t.expense || 0) : (t.income || 0);
                 
                 html += `
                     <tr style="border-bottom: 1px solid var(--color-border);">
                         <td style="padding: 1rem 0;">${new Date(t.date || Date.now()).toLocaleDateString()}</td>
                         <td style="padding: 1rem 0;">
                             <span style="background: ${typeColor}20; color: ${typeColor}; padding: 0.25rem 0.5rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 500;">
-                                ${t.type}
+                                ${typeLabels[t.type] || t.type}
                             </span>
                         </td>
-                        <td style="padding: 1rem 0; font-weight: 500;">€${Number(t.income || 0).toFixed(2)}</td>
+                        <td style="padding: 1rem 0; font-weight: 500;">€${Number(displayIncome).toFixed(2)}</td>
                         <td style="padding: 1rem 0; color: ${profitColor}; font-weight: 500;">€${Number(t.profit || 0).toFixed(2)}</td>
                     </tr>
                 `;
@@ -124,6 +126,17 @@ export class SalesModule {
         document.getElementById('btnNewCustomer')?.addEventListener('click', () => {
             const event = new CustomEvent('ui:openSlideOver', { detail: { type: 'newCustomer' } });
             window.dispatchEvent(event);
+        });
+
+        document.querySelectorAll('.btn-edit-customer').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.getAttribute('data-id');
+                const customer = salesService.cache.customers.find(c => c.id === id);
+                if (customer) {
+                    const event = new CustomEvent('ui:openSlideOver', { detail: { type: 'editCustomer', data: customer } });
+                    window.dispatchEvent(event);
+                }
+            });
         });
     }
 }

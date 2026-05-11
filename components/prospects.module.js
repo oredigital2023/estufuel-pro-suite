@@ -46,8 +46,8 @@ export class ProspectsModule {
                 
                 html += `
                     <tr style="border-bottom: 1px solid var(--color-border);">
-                        <td style="padding: 1rem; font-weight: 500;">${p.nombre}</td>
-                        <td style="padding: 1rem; color: var(--color-text-muted);">${p.telefono || '-'}</td>
+                        <td style="padding: 1rem; font-weight: 500;">${p.nombre_completo || 'Sin nombre'}</td>
+                        <td style="padding: 1rem; color: var(--color-text-muted);">${p.whatsapp || '-'}</td>
                         <td style="padding: 1rem;">
                             <span style="background: ${badgeColor}20; color: ${badgeColor}; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500;">
                                 ${p.estado || 'Nuevo'}
