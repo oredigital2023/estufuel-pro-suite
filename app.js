@@ -611,12 +611,16 @@ class App {
     listenForAuthChanges() {
         window.addEventListener('auth:stateChange', (e) => {
             const { user } = e.detail;
+            this.updateUserUI(user);
             if (user) {
                 this.loadInitialData();
             } else {
                 this.showLoginPlaceholder();
             }
         });
+
+        // Initial check
+        authService.getSession();
     }
 
     async loadInitialData() {
@@ -652,28 +656,119 @@ class App {
     showLoginPlaceholder() {
         const appContent = document.getElementById('appContent');
         appContent.innerHTML = `
-            <div class="empty-state" style="height: 100%;">
-                <div style="width: 80px; height: 80px; border-radius: var(--radius-2xl); background: var(--color-primary-light); display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem;">
-                    <i class="ph ph-lock-key" style="font-size: 2rem; color: var(--color-primary);"></i>
+            <div style="display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 2rem;">
+                <div class="bento-card" style="max-width: 400px; width: 100%; padding: 2.5rem;">
+                    <div style="text-align: center; margin-bottom: 2rem;">
+                        <div style="width: 64px; height: 64px; border-radius: var(--radius-xl); background: var(--color-primary-light); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.25rem;">
+                            <i class="ph ph-lightning" style="font-size: 1.75rem; color: var(--color-primary);"></i>
+                        </div>
+                        <h2 style="margin-bottom: 0.5rem;">Bienvenido a EstuFuel Pro</h2>
+                        <p>Identifícate para gestionar tu negocio Herbalife.</p>
+                    </div>
+
+                    <form id="authForm" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="authEmail" required class="form-input" placeholder="tu@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contraseña</label>
+                            <input type="password" id="authPassword" required class="form-input" placeholder="••••••••">
+                        </div>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem;">
+                            <button type="submit" id="btnSignIn" class="btn btn-primary" style="justify-content: center; padding: 0.75rem;">
+                                Iniciar Sesión
+                            </button>
+                            <button type="button" id="btnSignUp" class="btn btn-secondary" style="justify-content: center; padding: 0.75rem;">
+                                Crear Cuenta Nueva
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div style="margin-top: 1.5rem; text-align: center;">
+                        <a href="#" id="btnResetPassword" style="font-size: 0.75rem; color: var(--color-text-faint); text-decoration: none;">¿Olvidaste tu contraseña?</a>
+                    </div>
                 </div>
-                <h2 style="margin-bottom: 0.5rem;">Autenticación Requerida</h2>
-                <p style="margin-bottom: 1.5rem; max-width: 320px;">Inicia sesión para acceder a tu panel de gestión de EstuFuel Pro Suite.</p>
-                <button class="btn btn-primary" id="tempLoginBtn" style="padding: 0.75rem 2rem;">
-                    <i class="ph ph-sign-in"></i>
-                    Iniciar Sesión
-                </button>
             </div>
         `;
         
-        document.getElementById('tempLoginBtn')?.addEventListener('click', () => {
-            const email = prompt('Email:');
-            const password = prompt('Password:');
-            if (email && password) {
-                authService.signIn(email, password)
-                    .then(() => this.toast.success('Sesión iniciada'))
-                    .catch(err => this.toast.error(err.message));
+        const form = document.getElementById('authForm');
+        const btnSignIn = document.getElementById('btnSignIn');
+        const btnSignUp = document.getElementById('btnSignUp');
+
+        const handleAuth = async (action) => {
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            if(!email || !password) return;
+
+            const btn = action === 'login' ? btnSignIn : btnSignUp;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<div class="loader"></div> Procesando...';
+            btn.disabled = true;
+
+            try {
+                if(action === 'login') {
+                    await authService.signIn(email, password);
+                    this.toast.success('Sesión iniciada con éxito');
+                } else {
+                    await authService.signUp(email, password);
+                    this.toast.info('Revisa tu email para confirmar la cuenta');
+                }
+            } catch(err) {
+                this.toast.error(err.message);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
+        };
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleAuth('login');
         });
+
+        btnSignUp.addEventListener('click', () => handleAuth('signup'));
+        
+        document.getElementById('btnResetPassword')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            if(!email) return this.toast.warning('Introduce tu email primero');
+            authService.resetPassword(email)
+                .then(() => this.toast.info('Email de recuperación enviado'))
+                .catch(err => this.toast.error(err.message));
+        });
+    }
+
+    updateUserUI(user) {
+        const footer = document.querySelector('.nav-footer');
+        if (!footer) return;
+
+        if (user) {
+            footer.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="avatar avatar-primary">${user.email.charAt(0).toUpperCase()}</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 0.8125rem; font-weight: 550; color: var(--color-text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.email}</div>
+                            <div style="font-size: 0.6875rem; color: var(--color-text-faint); display: flex; align-items: center; gap: 0.25rem;">
+                                <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-success); display: inline-block;" class="animate-pulse"></span>
+                                Online
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost" id="btnLogout" style="width: 100%; justify-content: flex-start; padding: 0.375rem 0.5rem; font-size: 0.75rem; color: var(--color-danger);">
+                        <i class="ph ph-sign-out"></i> Cerrar Sesión
+                    </button>
+                </div>
+            `;
+            document.getElementById('btnLogout')?.addEventListener('click', () => authService.signOut());
+        } else {
+            footer.innerHTML = `
+                <div style="padding: 1rem; text-align: center; font-size: 0.75rem; color: var(--color-text-faint);">
+                    Inicia sesión para sincronizar
+                </div>
+            `;
+        }
     }
 }
 

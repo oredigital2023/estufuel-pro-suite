@@ -1,10 +1,24 @@
-# Local environment files
-.env
-.DS_Store
+# Dependencies
 node_modules/
-dist/
-*.log
-.tempmediaStorage/
+.npm/
 
-# Sensitive Config
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+.netlify/
+.vercel/
+
+# App Specific
 utils/config.js
+!utils/config.example.js
